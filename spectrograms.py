@@ -1,3 +1,10 @@
+'''
+Preprocessing for spectrograms:
+    - Loaded .wav files and normalized them
+    - Computed mel-spectrograms
+    - Saved mel-spectrograms as .npy files
+'''
+
 import librosa
 import librosa.display
 import matplotlib.pyplot as plt

@@ -3,8 +3,8 @@ import torch
 import soundfile as sf
 import numpy as np
 
-MODEL_PATH = "drum_model_streaming.ts"   # change if filename differs
-OUTPUT_PATH = "breaks\\drum_break.wav"
+MODEL_PATH = "drum_model_v2_streaming.ts"   # change if filename differs
+OUTPUT_PATH = "breaks_v2\\drum_break.wav"
 
 # Higher = longer break. You can experiment with 256, 512, 1024, etc.
 TIME_STEPS = 256  

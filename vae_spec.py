@@ -218,7 +218,7 @@ def main():
         w.writerow(["epoch","beta","train_loss","train_recon","train_kl","val_loss","val_recon","val_kl"])
     model = VAE(h=args.n_mels, w=args.target_frames, z_dim=args.z_dim).to(device)
     opt = torch.optim.Adam(model.parameters(), lr = args.lr)
-    scaler = torch.cuda.amp.GradScaler("cuda", enabled=torch.cuda.is_available())
+    scaler = torch.cuda.amp.GradScaler(enabled=torch.cuda.is_available())
     best_val = float('inf')
     global_step = 0
 
