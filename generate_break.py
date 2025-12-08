@@ -1,9 +1,10 @@
+from os import replace
 import torch
 import soundfile as sf
 import numpy as np
 
 MODEL_PATH = "drum_model_streaming.ts"   # change if filename differs
-OUTPUT_PATH = "drum_break.wav"
+OUTPUT_PATH = "breaks\\drum_break.wav"
 
 # Higher = longer break. You can experiment with 256, 512, 1024, etc.
 TIME_STEPS = 256  
@@ -49,6 +50,7 @@ audio = audio / (np.max(np.abs(audio)) + 1e-9)
 
 # RAVE models are usually 48kHz
 sr = 42000
-sf.write(OUTPUT_PATH, audio, samplerate=sr)
+for i in range(40):
+    sf.write(OUTPUT_PATH.replace('break.wav', str(i)+'.wav'), audio, samplerate=sr)
 
-print(f"Done! Wrote {OUTPUT_PATH}")
+    print(f"Done! Wrote {OUTPUT_PATH.replace('break.wav', str(i)+'.wav')}")
