@@ -1,3 +1,11 @@
+"""
+Docstring for generate_break
+Generates drum breaks using a pre-trained RAVE model
+
+Notes: This is AI-generated code as we didn't have familiarity working with
+the RAVE model.
+"""
+
 from os import replace
 import torch
 import soundfile as sf

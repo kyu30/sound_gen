@@ -1,3 +1,10 @@
+"""
+    Convert a VAE-generated mel (roughly [0,1]) to audio using the Griffin-lim algorithm.
+    - npy_path: VAE output .npy file (shape (n_mels, frames) or (1,n_mels,frames))
+    - wav_path: where to save the .wav
+
+    Note: This is AI-generated code as we've never used/implemented the algorithm before.
+"""
 from pathlib import Path
 import numpy as np
 import librosa, soundfile as sf
@@ -13,11 +20,7 @@ MEL_KW = dict(htk=False, norm="slaney")
 def vae_mel_to_wav(npy_path, wav_path,
                    sr=SR, db_lo=-80.0, db_hi=0.0,
                    stretch=True):
-    """
-    Convert a VAE-generated mel (roughly [0,1]) to audio.
-    - npy_path: VAE output .npy file (shape (n_mels, frames) or (1,n_mels,frames))
-    - wav_path: where to save the .wav
-    """
+
     mel = np.load(npy_path).astype("float32")
 
     # squeeze (1,H,W) or (H,W,1) -> (H,W)
@@ -26,11 +29,7 @@ def vae_mel_to_wav(npy_path, wav_path,
             mel = mel[0]
         elif mel.shape[-1] == 1:
             mel = mel[..., 0]
-
-    # clean and clamp
     mel = np.nan_to_num(mel, nan=0.0, posinf=1.0, neginf=0.0)
-
-    # optional: stretch current range [min,max] to [0,1]
     if stretch:
         mn, mx = float(mel.min()), float(mel.max())
         if mx > mn + 1e-8:

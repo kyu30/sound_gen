@@ -1,3 +1,7 @@
+'''
+    Vector quantized VAE model and training code for mel-spectrograms in .npy format.
+'''
+
 import os, math, random, argparse, glob, time
 from pathlib import Path
 from typing import List, Tuple
@@ -9,6 +13,13 @@ from torch.utils.data import Dataset, DataLoader
 import csv
 
 class NPYDataset(Dataset):
+    """
+    Docstring for NPYDataset
+    Loads .npy spectrogram files, normalizes them to [0,1] from [-80,0] dB,
+    applies random cropping to target frames for sampling, and randomly masks
+    time and frequency bands during training for data augmentation
+    Essentially the same as the dataset used in VAE spectrogram training
+    """
     def __init__(self, root, target_frames, time_mask=0, freq_mask=0,
                  split_ratio=(0.8, 0.1, 0.1), split='train', seed=42, recursive=True):
         self.root = Path(root)
@@ -72,6 +83,13 @@ class NPYDataset(Dataset):
         return torch.from_numpy(mel)[None, :, :], path.name
 
 class VectorQuantizer(nn.Module):
+    """
+    Docstring for VectorQuantizer
+    Implements vector quantization layer for VQ-VAE
+    Uses embedding lookup to quantize encoder outputs to nearest codebook vectors
+    The codebook is an nn.Embedding of shape [num_codes, code_dim], initialized uniformly
+    in a small range
+    """
     def __init__(self, num_codes=512, code_dim=128, beta=0.25):
         super().__init__()
         self.num_codes = num_codes
@@ -81,6 +99,16 @@ class VectorQuantizer(nn.Module):
         nn.init.uniform_(self.embeddings.weight, -1.0 / num_codes, 1.0 / num_codes)
 
     def forward(self, z_e):
+        """
+        Docstring for forward
+        The forward pass takes encoder output z_e of shape [B, C, H, W] and flattens it so that 
+        we have B*H*W vectors of dimension C (code_dim)
+        It then computes the squared Euclidean distance from each vector to each codebook entry
+        The nearest codebook entry is selected for each vector, and the quantized output z_q
+        codebook_loss: updates embeddings (codebook) so they move toward encoder outputs
+        commitment_loss: encourages encoder outputs to commit to codes so they don't move arbitrarily
+        vq_loss: total loss as sum of codebook and commitment losses, weighted by beta
+        """
         B, C, H, W = z_e.shape
         z_flat = z_e.permute(0, 2, 3, 1).contiguous().view(-1, C)
 
@@ -102,6 +130,12 @@ class VectorQuantizer(nn.Module):
         return z_q_st, vq_loss, codes
 
 class Encoder(nn.Module):
+    """
+    Docstring for Encoder
+    3 conv layers with stride 2 to downsample the spectrogram in time and frequency, uses ReLU instead of SiLU
+    Input shape: (B, 1, 128, 172)
+    Output shape: (B, z_ch, 16, 22)
+    """
     def __init__(self, in_ch=1, z_ch=128):
         super().__init__()
         self.net = nn.Sequential(
@@ -118,6 +152,13 @@ class Encoder(nn.Module):
 
 
 class Decoder(nn.Module):
+    """
+    Docstring for Decoder
+    Same architecture as Encoder but with ConvTranspose2d to upsample
+    Input shape: (B, z_ch, 16, 22)
+    Output shape: (B, 1, 128, 172)
+    4 conv transpose layers with stride 2 to upsample the spectrogram in time and frequency, uses ReLU instead of SiLU
+    """
     def __init__(self, out_ch=1, z_ch=128):
         super().__init__()
         self.net = nn.Sequential(
@@ -131,11 +172,18 @@ class Decoder(nn.Module):
             nn.Sigmoid(),
         )
     def forward(self, z_q):
+        # Crops the sample to original width of 172
         x_hat = self.net(z_q)
         x_hat = x_hat[:, :, :, :172]
         return x_hat
     
 class VQVAE(nn.Module):
+    """
+    Docstring for VQVAE
+    Combines Encoder, VectorQuantizer, and Decoder into a full VQ-VAE model
+    forward pass returns reconstructed spectrogram, VQ loss, and quantized codes
+    Returns x_hat (reconstructed spectrogram), vq_loss, and codes (discrete latent codes)
+    """
     def __init__(self, in_ch=1, out_ch=1, z_ch=128, num_codes=512, beta=0.25):
         super().__init__()
         self.encoder = Encoder(in_ch=in_ch, z_ch=z_ch)
@@ -152,6 +200,7 @@ class VQVAE(nn.Module):
 
 
 def vqvae_loss(x, x_hat, vq_loss, recon_type="l1"):
+    # Aligns sequence length in case of mismatch in time dimension, then chooses reconstruction loss
     T = min(x.shape[-1], x_hat.shape[-1])
     x = x[..., :T]
     x_hat = x_hat[..., :T]
@@ -163,12 +212,7 @@ def vqvae_loss(x, x_hat, vq_loss, recon_type="l1"):
         recon = F.binary_cross_entropy(x_hat, x)
     return recon + vq_loss, recon, vq_loss
 
-def pad(batch):
-    xs, names = zip(*batch)
-    x = torch.stack(xs, dim=0)
-    return x, names
-
-
+# save_recon and save_prior are the same as in vae_spec.py
 def save_recon(model, loader, device, out_dir, n_batches=1):
     out_dir.mkdir(parents=True, exist_ok=True)
     model.eval()
@@ -205,6 +249,8 @@ def save_prior(model, device, out_dir, n=16):
                     x[i].squeeze(0).detach().cpu().numpy().astype(np.float16))
 
 def main():
+    # Same training loop structure as in vae_spec.py, doesn't use KL loss/warmup
+    # This also samples random code indices instead of random latent vectors
     ap = argparse.ArgumentParser()
     ap.add_argument("--data_dir", type=str, required=True, help="Folder containing .npy spectrograms")
     ap.add_argument("--epochs", type=int, default=20)

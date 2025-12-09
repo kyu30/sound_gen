@@ -1,3 +1,7 @@
+'''
+Batch convert .wav files to mel-spectrogram .png images.
+'''
+
 import os
 from pathlib import Path
 import numpy as np

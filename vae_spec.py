@@ -1,3 +1,6 @@
+'''
+    VAE model and training code for mel-spectrograms in .npy format.
+'''
 import os, math, random, argparse, glob, time
 from pathlib import Path
 from typing import List, Tuple
@@ -8,6 +11,12 @@ from torch.utils.data import Dataset, DataLoader
 import csv
 
 class NPYDataset(Dataset):
+    '''
+    Docstring for NPYDataset
+    Loads .npy spectrogram files, normalizes them to [0,1] from [-80,0] dB,
+    applies random cropping to target frames for sampling, and randomly masks
+    time and frequency bands during training for data augmentation
+    '''
     def __init__(self, root, target_frames, time_mask = 0, freq_mask = 0, split_ratio =(0.8, 0.1, 0.1), split = 'train', seed = 42, recursive = True):
         self.root = Path(root)
         self.target_frames = target_frames
@@ -28,7 +37,6 @@ class NPYDataset(Dataset):
             self.files = [files[i] for i in val_idx]
         else:
             self.files = [files[i] for i in test_idx]
-        self.target_frames = 172
         self.time_mask = time_mask
         self.freq_mask = freq_mask
     
@@ -71,23 +79,17 @@ class NPYDataset(Dataset):
                 mel = self._specaugment(mel)
 
         return torch.from_numpy(mel)[None, :, :], path.name
-    def _crop_or_pad(self, mel: np.ndarray) -> np.ndarray:
-        n_mels, T = mel.shape
-        target = self.target_frames
-
-        if T == target:
-            return mel
-        elif T > target:
-            start = np.random.randint(0, T - target + 1)
-            return mel[:, start:start+target]
-        else:
-            pad_width = target - T
-            pad = np.full((n_mels, pad_width), 0.0, dtype=mel.dtype)
-            return np.concatenate([mel, pad], axis=1)
-
 
     
 class Encoder(nn.Module):
+    """
+    Docstring for Encoder
+    VAE Encoder for mel-spectrograms:
+    Maps input mel-spectrograms ([B,1,128,172]) to latent mean and log-variance (mu, logvar)
+    Uses 3 2d convolutional layers with stride = 2, GroupNorm, and SiLU activation
+    Inferences on dummy input to compute flattened feature dimension and create
+    fc_mu(mean of latent space) and fc_logvar (log-variance)
+    """
     def __init__(self, in_ch = 1, h = 128, w = 172, z_dim = 128):
         super().__init__()
         self.net = nn.Sequential(
@@ -111,6 +113,13 @@ class Encoder(nn.Module):
         return mu, logvar
 
 class Decoder(nn.Module):
+    """
+    Docstring for Decoder
+    Takes latent vector z and reconstructs an output spectrogram
+    Uses a linear layer to expand latent vector back to the feature map size
+    Uses 3 ConvTranspose2d layers with stride = 2, GroupNorm, and SiLU activation
+    The final Conv2d layer maps to an ouput channel with Sigmoid activation to scale to [0,1]
+    """
     def __init__(self, out_ch=1, h=128, w=172, z_dim=128, feat_shape=(128,16,22)):
         super().__init__()
         C, Hf, Wf = feat_shape
@@ -133,6 +142,11 @@ class Decoder(nn.Module):
 
 
 class VAE(nn.Module):
+    """
+    Docstring for VAE
+    Calls Encoder and Decoder to create a full VAE model
+    Implements the reparameterization trick in parameterize() and forward pass in forward()
+    """
     def __init__(self, h = 128, w = 172, z_dim = 128):
         super().__init__()
         self.encode = Encoder(in_ch = 1, h = h, w = w, z_dim = z_dim)
@@ -148,6 +162,10 @@ class VAE(nn.Module):
         return x_hat, mu, logvar
 
 def vae_loss(recon, x, mu, logvar, beta = 1.0, recon_type = 'l1'):
+    """
+    Docstring for vae_loss
+    Returns the VAE loss as sum of reconstruction loss and KL divergence, factoring in a parameter beta
+    """
     if recon_type == 'bce':
         recon_loss = nn.functional.binary_cross_entropy(recon, x, reduction = 'mean')
     elif recon_type == 'mse':
@@ -156,10 +174,11 @@ def vae_loss(recon, x, mu, logvar, beta = 1.0, recon_type = 'l1'):
         recon_loss = nn.functional.l1_loss(recon, x, reduction = 'mean')
     kl = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
     return recon_loss + beta * kl, recon_loss, kl
-def pad(batch):
-    xs, names = zip(*batch)
-    x = torch.stack(xs, dim = 0)
-    return x, names
+
+"""
+save_recon: saves original and reconstructed spectrograms from the model on a validation set
+save_prior: samples random latent z and decodes to generate synthetic mel-spectrograms
+"""
 
 def save_recon(model, loader, device, out_dir, n_batches = 1):
     out_dir.mkdir(parents = True, exist_ok = True)
@@ -189,6 +208,13 @@ def save_prior(model, device, out_dir, n = 16):
                 x[i].squeeze(0).detach().cpu().numpy().astype(np.float16))
         
 def main():
+    """
+    Docstring for main
+    Argument parsing: takes arguments from terminal input to set up parameters
+    Create and load dataset, dataloader, model, optimizer, and training loop
+    Per-epoch metrics saved to metrics.csv
+    Saves reconstructions, prior samples every 3 epochs
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("--data_dir", type=str, required=True, help="Folder containing .npy spectrograms")
     ap.add_argument("--epochs", type=int, default=20)
@@ -210,8 +236,8 @@ def main():
     save_dir = Path(args.save_dir); save_dir.mkdir(parents=True, exist_ok = True)
     train_ds = NPYDataset(args.data_dir, target_frames = args.target_frames, time_mask = args.specaug_time_mask, freq_mask = args.specaug_freq_mask, split = 'train')
     val_ds = NPYDataset(args.data_dir, target_frames = args.target_frames, split = 'val')
-    train_load = DataLoader(train_ds, batch_size = args.batch_size, shuffle = True, num_workers = args.num_workers, collate_fn = pad, pin_memory = True)
-    val_load = DataLoader(val_ds, batch_size = args.batch_size, shuffle = False, num_workers = args.num_workers, collate_fn=pad, pin_memory=True)
+    train_load = DataLoader(train_ds, batch_size = args.batch_size, shuffle = True, num_workers = args.num_workers, pin_memory = True)
+    val_load = DataLoader(val_ds, batch_size = args.batch_size, shuffle = False, num_workers = args.num_workers, pin_memory=True)
     metrics_csv = (save_dir / "metrics.csv").as_posix()
     with open(metrics_csv, "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
@@ -221,8 +247,14 @@ def main():
     scaler = torch.cuda.amp.GradScaler(enabled=torch.cuda.is_available())
     best_val = float('inf')
     global_step = 0
-
+    # Training loop
     for epoch in range(1, args.epochs + 1):
+        """
+        Trains the VAE model for a specified number of epochs
+        Implements mixed precision training using torch.cuda.amp for efficiency
+        KL warmup is applied to gradually increase the weight of beta over the first few epochs
+        After each epoch, evaluates on validation set and saves best model checkpoint
+        """
         beta_now = args.beta * min(1.0, epoch/max(1, args.kl_warmup_epochs))
         model.train()
         running = {"loss": 0.0, "recon": 0.0, "kl": 0.0}
