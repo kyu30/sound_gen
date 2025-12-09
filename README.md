@@ -1,3 +1,5 @@
+RAVE_Data link: <a>https://drive.google.com/drive/folders/1SSCSCa5x5D-RTbMxqPnORDXHkt2yNpUU?usp=sharing</a>
+
 To train and run the VAE model: 
 
 python vae_spec.py --data_dir "Normalized Breaks\Normalized_Breaks\spectrograms"--epochs 60 --batch_size 32 --lr 2e-4 --beta 0.1 --kl_warmup_epochs 5 --z_dim 128 --n_mels 128 --target_frames 172 --specaug_time_mask 0 --specaug_freq_mask 0 --num_workers 2 --save_dir "checkpoints" --recon l1
