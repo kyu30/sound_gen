@@ -4,7 +4,7 @@ python vae_spec.py --data_dir "Normalized Breaks\Normalized_Breaks\spectrograms"
 
 To train and run the VQ-VAE model: 
 
-python vgvae_spec.py --data_dir "Normalized Breaks\Normalized_Breaks\spectrograms" --epochs 60 --batch_size 32 --lr 2e-4 --z_dim 128 --n_mels 128 --target_frames 172 --specaug_time_mask 1 --specaug_freq_mask 1 --num_workers 2 --save_dir "checkpoints_vq" --recon l1 --num_codes 512 --vq_beta 0.25
+python vqvae_spec.py --data_dir "Normalized Breaks\Normalized_Breaks\spectrograms" --epochs 60 --batch_size 32 --lr 2e-4 --z_dim 128 --n_mels 128 --target_frames 172 --specaug_time_mask 1 --specaug_freq_mask 1 --num_workers 2 --save_dir "checkpoints_vq" --recon l1 --num_codes 512 --vq_beta 0.25
 
 The spectrograms folder contains .npy files of the drum breaks and are already preprocessed. 
 
