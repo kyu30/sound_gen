@@ -47,7 +47,7 @@ if __name__ == "__main__":
             continue
         else:
             if __name__ == "__main__":
-                in_dir = Path(rf"checkpoints_vq/samples_epoch{i}/wavs")   # folder with your .wav
+                in_dir = Path(rf"checkpoints_vq/samples_epoch{i}/wavs")
                 out_dir = in_dir / "mel_png"
                 out_dir.mkdir(parents=True, exist_ok=True)
 

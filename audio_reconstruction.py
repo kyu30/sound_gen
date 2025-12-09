@@ -62,7 +62,7 @@ for i in range(61):
     if not Path(rf"checkpoints_vq/samples_epoch{i}").exists():
         continue
     else:
-        in_dir  = Path(rf"checkpoints_vq/samples_epoch{i}")  # change epoch if needed
+        in_dir  = Path(rf"checkpoints_vq/samples_epoch{i}")
         out_dir = in_dir / "wavs"
         out_dir.mkdir(exist_ok=True)
 
